@@ -1,15 +1,28 @@
 <script setup lang="ts">
-import {onMounted, reactive, ref} from 'vue'
+import {onMounted, reactive, ref, watch} from 'vue'
 import axios from "axios";
 
 let question = ref('　')
-let result = ref('')
+let result = ref('　')
 let passed = ref('')
 let strange = ref('')
 
 const form = reactive({
   input: '',
 })
+
+watch(
+    () => form.input,
+    (val) => {
+      if (val === '2') {
+        onPass()
+      } else if (val === '3') {
+        onStrange()
+      } else if (val === '4') {
+        onReset()
+      }
+    }
+)
 
 onMounted(() => {
   getQuestion()
@@ -24,23 +37,19 @@ function getQuestion() {
 }
 
 const onSubmit = () => {
-  if (form.input === '2') {
-    onPass()
-  } else if (form.input === '3') {
-    onStrange()
-  } else if (form.input === '4') {
-    onReset()
-  } else if (form.input === '') {
+  if (form.input === '') {
     result.value = '请键入答案或快捷键'
   } else {
     const params = new URLSearchParams();
     params.append('question', `${question.value}`);
     params.append('input', `${form.input}`);
     axios.post('http://127.0.0.1:8080/check', params).then(function (response) {
-      result.value = `${response.data}`;
-      if (result.value === '正确') {
-        getQuestion()
+      if (form.input === response.data) {
+        onPass()
+        result.value = '正确'
         cleanInput()
+      } else {
+        result.value = '错误'
       }
     }).catch(function (error) {
       alert("error == " + error);
@@ -53,8 +62,12 @@ function onPass() {
   const params = new URLSearchParams();
   params.append('question', `${question.value}`);
   axios.post('http://localhost:8080/doPass', params).then(res => {
-    passed.value += res.data + '<br>'
-    getQuestion()
+    if (res.data.indexOf("全部") != 0) {
+      passed.value += res.data + '<br>'
+      getQuestion()
+    } else {
+      result.value = "全部提问过了，重新开始吧！"
+    }
   }).catch(err => {
     alert("error == " + err)
   })
@@ -65,14 +78,21 @@ function onStrange() {
   const params = new URLSearchParams();
   params.append('question', `${question.value}`);
   axios.post('http://localhost:8080/doStrange', params).then(res => {
-    strange.value += res.data + '<br>'
-    getQuestion()
+    if (res.data.indexOf("全部") != 0) {
+      strange.value += res.data + '<br>'
+      getQuestion()
+    } else {
+      result.value = "全部提问过了，重新开始吧！"
+    }
   }).catch(err => {
     alert("error == " + err)
   })
 }
 
 function onReset() {
+  if (!confirm("确定要重置吗？")) {
+    return
+  }
   cleanInputAndMsg()
   axios.get('http://localhost:8080/doReset').then(res => {
     getQuestion()
@@ -89,19 +109,19 @@ const cleanInput = () => {
 
 const cleanInputAndMsg = () => {
   form.input = ''
-  result.value = ''
+  result.value = '　'
 }
 
 function resetClean() {
   form.input = ''
-  result.value = ''
+  result.value = '　'
   passed.value = ''
   strange.value = ''
 }
 
 
 const cleanMsg = () => {
-  result.value = ''
+  result.value = '　'
 }
 
 
@@ -129,19 +149,29 @@ const cleanMsg = () => {
           <el-button type="danger" @click="onReset">重置提问</el-button>
         </el-row>
         <br>
-        {{ result }}<br>
+        {{ result }}
 
         <div id="passed">
           <h2>通过的</h2>
-          <span v-html="passed"></span>
+          <el-scrollbar height="50vh" always>
+            <p v-for="item in passed.split('<br>').filter(item => item)"
+               :key="item" class="scrollbar-demo-item">
+              {{ item }}
+            </p>
+          </el-scrollbar>
         </div>
 
       </el-form>
     </div>
 
     <div class="right">
-      <h2>陌生的</h2>
-      <span v-html="strange"></span>
+      <h2>不熟悉的</h2>
+      <el-scrollbar height="69vh" always>
+        <p v-for="item in strange.split('<br>').filter(item => item)"
+           :key="item" class="scrollbar-demo-item">
+          {{ item }}
+        </p>
+      </el-scrollbar>
     </div>
   </div>
 
@@ -161,11 +191,18 @@ const cleanMsg = () => {
 /* 左侧容器样式 */
 .left {
   width: 50%;
-  border-right: solid black;
+  border-right: solid;
 }
 
 /* 右侧容器样式 */
 .right {
-  width: 50%;
+  padding-left: 50px;
+  flex-grow: 1; /* 占据父元素剩余的空间 */
+}
+
+.scrollbar-demo-item {
+  border-radius: 4px;
+  text-align: left;
+  color: black;
 }
 </style>
